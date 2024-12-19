@@ -4,3 +4,5 @@ librosa
 numpy
 matplotlib
 scikit-learn
+seaborn
+pandas

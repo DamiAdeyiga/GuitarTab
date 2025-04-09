@@ -48,3 +48,19 @@ To train the model, run:
 
 ```bash
 python scripts/train_chord_model.py
+
+
+GuitarTab/
+├── data/
+│   └── raw/GuitarChordsV2/
+├── notebooks/
+│   ├── 01_data_exploration.ipynb
+│   └── 02_data_preparation.ipynb
+├── src/
+│   ├── __init__.py
+│   ├── data_preprocessing.py
+│   └── models.py
+├── scripts/
+│   ├── train_chord_model.py
+│   └── predict_chords.py
+└── models/

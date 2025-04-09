@@ -171,6 +171,7 @@ plot_history(history)
 
 # Save the final model
 model.save('models/chord_model_final.h5')
+
 with open('models/label_encoder.pkl', 'wb') as f:
     pickle.dump(label_encoder, f)
 

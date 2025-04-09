@@ -1,21 +1,26 @@
-# scripts/train_chord_model.py
-
 import os
+import numpy as np
 import tensorflow as tf
-from src.data_preprocessing import load_wav_16k_mono, preprocess_audio, compute_spectrogram, get_file_paths, encode_labels, preprocess_dataset
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import matplotlib.pyplot as plt
-from tensorflow.keras.layers import BatchNormalization, Reshape, Bidirectional, LSTM
+import pickle
+import seaborn as sns
+from sklearn.utils.class_weight import compute_class_weight
+from sklearn.metrics import confusion_matrix, classification_report
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from collections import Counter
+
+from src.data_preprocessing import get_file_paths, encode_labels, create_tf_datasets
+from src.models import create_crnn_model
 
 # Define paths and parameters
 DATA_DIR = '/content/drive/MyDrive/GuitarTab/data/raw/GuitarChordsV2/'
 TRAIN_DIR = os.path.join(DATA_DIR, 'Training')
 TEST_DIR = os.path.join(DATA_DIR, 'Test')
+MODEL_DIR = 'models'
+os.makedirs(MODEL_DIR, exist_ok=True)
+
 chords = ['Am', 'Bb', 'Bdim', 'C', 'Dm', 'Em', 'F', 'G']
 batch_size = 16
-AUTOTUNE = tf.data.AUTOTUNE
 num_classes = len(chords)
 
 # Load and encode labels
@@ -23,88 +28,25 @@ train_files, train_labels = get_file_paths(TRAIN_DIR, chords)
 test_files, test_labels = get_file_paths(TEST_DIR, chords)
 
 label_encoder, train_labels_cat = encode_labels(train_labels)
-_, test_labels_cat = encode_labels(test_labels)  # Ensure same encoding
+_, test_labels_cat = encode_labels(test_labels)
 
-# Create TensorFlow datasets
-def preprocess_function(file_path, label):
-    wav = load_wav_16k_mono(file_path.numpy().decode('utf-8'))
-    # Apply augmentation during training (50% probability)
-    if np.random.random() < 0.5:
-        wav = augment_audio(wav)
-    # Standardize length
-    wav = standardize_audio_length(wav)
-    # Compute mel spectrogram instead of regular spectrogram
-    mel_spec = compute_mel_spectrogram(wav, fixed_shape=(128, 128))
-    # Add channel dimension
-    mel_spec = np.expand_dims(mel_spec, axis=-1)
-    return mel_spec, label
+# Create datasets
+train_dataset, validation_dataset = create_tf_datasets(
+    train_files, train_labels_cat, 
+    test_files, test_labels_cat,
+    batch_size=batch_size,
+    num_classes=num_classes
+)
 
-def tf_preprocess(file_path, label):
-    spectrogram, label = tf.py_function(preprocess_function, [file_path, label], [tf.float32, tf.float32])
-    # Set fixed shape instead of None, None
-    spectrogram.set_shape([128, 128, 1])
-    label.set_shape([num_classes])
-    return spectrogram, label
-
-train_dataset = tf.data.Dataset.from_tensor_slices((train_files, train_labels_cat))
-train_dataset = train_dataset.map(tf_preprocess, num_parallel_calls=AUTOTUNE)
-train_dataset = train_dataset.shuffle(buffer_size=1000).batch(batch_size).prefetch(AUTOTUNE)
-
-validation_dataset = tf.data.Dataset.from_tensor_slices((test_files, test_labels_cat))
-validation_dataset = validation_dataset.map(tf_preprocess, num_parallel_calls=AUTOTUNE)
-validation_dataset = validation_dataset.batch(batch_size).prefetch(AUTOTUNE)
-
-
-# Define the CRNN model
-model = Sequential([
-    # CNN part
-    Conv2D(32, (3,3), padding='same', activation='relu', input_shape=(128, 128, 1)),
-    BatchNormalization(),
-    MaxPooling2D((2,2)),  # 64x64
-    
-    Conv2D(64, (3,3), padding='same', activation='relu'),
-    BatchNormalization(),
-    MaxPooling2D((2,2)),  # 32x32
-    
-    Conv2D(128, (3,3), padding='same', activation='relu'),
-    BatchNormalization(),
-    MaxPooling2D((2,2)),  # 16x16
-    
-    # Reshape for RNN
-    Reshape((16, 128)),  # Reshape to (16, 128) or adjust based on your dimensions
-    
-    # RNN part
-    Bidirectional(LSTM(64, return_sequences=True)),
-    Bidirectional(LSTM(64)),
-    
-    # Classification head
-    Dense(128, activation='relu'),
-    Dropout(0.5),
-    Dense(num_classes, activation='softmax')
-])
-
-# Compile the model
-model.compile(optimizer='adam',
-              loss='categorical_crossentropy',
-              metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
-
-# Display the model summary
+# Create model
+model = create_crnn_model(input_shape=(128, 128, 1), num_classes=num_classes)
 model.summary()
 
-# Set up callbacks
-callbacks = [
-    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-    ModelCheckpoint('models/chord_model_best.h5', save_best_only=True)
-]
-# Check if classes are imbalanced
-from collections import Counter
-from sklearn.utils.class_weight import compute_class_weight
-
-train_labels_list = [label for label in train_labels]
+# Compute class weights
+train_labels_list = train_labels
 class_counts = Counter(train_labels_list)
 print("Class distribution:", class_counts)
 
-# Compute class weights if needed
 class_weights = compute_class_weight(
     'balanced', 
     classes=np.unique(train_labels_list), 
@@ -113,8 +55,13 @@ class_weights = compute_class_weight(
 class_weight_dict = dict(zip(range(len(class_weights)), class_weights))
 print("Class weights:", class_weight_dict)
 
+# Set up callbacks
+callbacks = [
+    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
+    ModelCheckpoint(os.path.join(MODEL_DIR, 'chord_model_best.h5'), save_best_only=True)
+]
 
-# Train the model with class weights
+# Train the model
 history = model.fit(
     train_dataset,
     epochs=50,
@@ -122,6 +69,11 @@ history = model.fit(
     callbacks=callbacks,
     class_weight=class_weight_dict
 )
+
+# Save the model and label encoder
+model.save(os.path.join(MODEL_DIR, 'chord_model_final.h5'))
+with open(os.path.join(MODEL_DIR, 'label_encoder.pkl'), 'wb') as f:
+    pickle.dump(label_encoder, f)
 
 # Plot training history
 def plot_history(history):
@@ -165,35 +117,16 @@ def plot_history(history):
     plt.legend(loc='lower right')
     plt.title('Recall')
 
+    plt.tight_layout()
+    plt.savefig(os.path.join(MODEL_DIR, 'training_history.png'))
     plt.show()
 
 plot_history(history)
 
-# Save the final model
-model.save('models/chord_model_final.h5')
-with open('models/label_encoder.pkl', 'wb') as f:
-    pickle.dump(label_encoder, f)
-
-# Optionally, save label encoder
-import pickle
-with open('models/label_encoder.pkl', 'wb') as f:
-    pickle.dump(label_encoder, f)
-
-from sklearn.metrics import confusion_matrix, classification_report
-import seaborn as sns
-
+# Plot confusion matrix
 def plot_confusion_matrix(model, dataset, label_encoder):
     """
     Plot the confusion matrix for the model predictions.
-
-    Parameters:
-    ----------
-    model : tf.keras.Model
-        Trained Keras model.
-    dataset : tf.data.Dataset
-        Validation dataset.
-    label_encoder : sklearn.preprocessing.label_encoder 
-        Label encoder used for encoding labels.
     """
     y_true = []
     y_pred = []
@@ -213,10 +146,9 @@ def plot_confusion_matrix(model, dataset, label_encoder):
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
     plt.title('Confusion Matrix')
+    plt.tight_layout()
+    plt.savefig(os.path.join(MODEL_DIR, 'confusion_matrix.png'))
     plt.show()
-
-# Plot confusion matrix
-plot_confusion_matrix(model, validation_dataset, label_encoder)
 
 # Print classification report
 def print_classification_report(model, dataset, label_encoder):
@@ -230,6 +162,15 @@ def print_classification_report(model, dataset, label_encoder):
         y_true.extend(true_labels)
         y_pred.extend(predicted_labels)
 
-    print(classification_report(y_true, y_pred, target_names=label_encoder.classes_))
+    report = classification_report(y_true, y_pred, target_names=label_encoder.classes_)
+    print(report)
+    
+    # Also save the report to a file
+    with open(os.path.join(MODEL_DIR, 'classification_report.txt'), 'w') as f:
+        f.write(report)
 
+# Evaluate the model
+plot_confusion_matrix(model, validation_dataset, label_encoder)
 print_classification_report(model, validation_dataset, label_encoder)
+
+print(f"Training complete. Model saved to {MODEL_DIR}")

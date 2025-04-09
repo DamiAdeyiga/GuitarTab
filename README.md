@@ -13,6 +13,21 @@ GuitarTab is a project aimed at making guitar learning more accessible by conver
 - `scripts/`: Future home of training and inference scripts.
 - `notebooks/`: Jupyter notebooks for exploration, experimentation, and demonstration.
 
+- GuitarTab/
+├── data/
+│   └── raw/GuitarChordsV2/
+├── notebooks/
+│   ├── 01_data_exploration.ipynb
+│   └── 02_data_preparation.ipynb
+├── src/
+│   ├── __init__.py
+│   ├── data_preprocessing.py
+│   └── models.py
+├── scripts/
+│   ├── train_chord_model.py
+│   └── predict_chords.py
+└── models/
+
 ## Setup Instructions
 
 **Prerequisites**:
@@ -50,17 +65,4 @@ To train the model, run:
 python scripts/train_chord_model.py
 
 
-GuitarTab/
-├── data/
-│   └── raw/GuitarChordsV2/
-├── notebooks/
-│   ├── 01_data_exploration.ipynb
-│   └── 02_data_preparation.ipynb
-├── src/
-│   ├── __init__.py
-│   ├── data_preprocessing.py
-│   └── models.py
-├── scripts/
-│   ├── train_chord_model.py
-│   └── predict_chords.py
-└── models/
+

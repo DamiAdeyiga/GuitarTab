@@ -6,14 +6,15 @@ import pickle
 import seaborn as sns
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import confusion_matrix, classification_report
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 from collections import Counter
 
 from src.data_preprocessing import get_file_paths, encode_labels, create_tf_datasets
 from src.models import create_crnn_model
 
 # Define paths and parameters
-DATA_DIR = '/content/drive/MyDrive/GuitarTab/data/raw/GuitarChordsV2/'
+DATA_DIR = r"C:\Users\User\Documents\GitHub\GuitarTab\Guitar_Chords_V2"
+
 TRAIN_DIR = os.path.join(DATA_DIR, 'Training')
 TEST_DIR = os.path.join(DATA_DIR, 'Test')
 MODEL_DIR = 'models'

@@ -22,7 +22,7 @@ def create_crnn_model(input_shape=(128, 128, 1), num_classes=8):
         MaxPooling2D((2,2)),  # 16x16
         
         # Reshape for RNN
-        Reshape((16, 128)),  
+        Reshape((256, 128)),  
         
         # RNN part
         Bidirectional(LSTM(64, return_sequences=True)),

@@ -4,10 +4,10 @@ import tensorflow as tf
 import librosa
 import pickle
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
+from keras.models import load_model
 from src.data_preprocessing import load_wav_16k_mono, standardize_audio_length, compute_mel_spectrogram
 
-def predict_chord(audio_file, model_path, encoder_path):
+def predict_chords(audio_file, model_path, encoder_path):
     """
     Predict chord from audio file
     """

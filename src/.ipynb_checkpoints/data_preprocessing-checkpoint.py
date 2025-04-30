@@ -6,6 +6,35 @@ import glob
 from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.utils import to_categorical
 
+def parse_idmt_annotations(lab_path):
+    """Parse IDMT-SMT annotation files"""
+    annotations = []
+    with open(lab_path, 'r') as f:
+        for line in f:
+            start, end, chord = line.strip().split('\t')
+            annotations.append((float(start), float(end), chord))
+    return annotations
+
+def process_idmt_audio(wav_path, lab_path, output_dir):
+    """Split IDMT continuous audio into individual chord files"""
+    # Load audio
+    y, sr = librosa.load(wav_path, sr=16000)
+    
+    # Get annotations
+    annotations = parse_idmt_annotations(lab_path)
+    
+    # Create output structure
+    for start, end, chord in annotations:
+        # Extract 2-second chunk
+        start_sample = int(start * sr)
+        end_sample = int(end * sr)
+        chunk = y[start_sample:end_sample]
+        
+        # Save to appropriate directory
+        chord_dir = os.path.join(output_dir, chord)
+        os.makedirs(chord_dir, exist_ok=True)
+        sf.write(os.path.join(chord_dir, f"{chord}_{start}.wav"), chunk, sr)
+        
 def load_wav_16k_mono(file_path):
     """Load a WAV file, resample to 16kHz and convert to mono"""
     wav, sr = librosa.load(file_path, sr=16000, mono=True)

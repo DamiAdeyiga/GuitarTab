@@ -3,7 +3,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 from tensorflow.keras.layers import BatchNormalization, Reshape, Bidirectional, LSTM
 
-def create_crnn_model(input_shape=(128, 128, 1), num_classes=8):
+def create_crnn_model(input_shape=(128, 128, 1), num_classes=273):
     """
     Create a Convolutional Recurrent Neural Network (CRNN) for audio classification
     """
